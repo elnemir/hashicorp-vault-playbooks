@@ -2,6 +2,34 @@
 
 Ниже список вопросов, ответы на которые позволят собрать production-ready плейбук с минимальным числом проходов.
 
+## Статус ответов (2026-03-11)
+
+### Закрыто
+- Топология: 3 узла, HAProxy VIP `10.255.107.49`, anti-affinity `true`.
+- Узлы: `vault-test-01/02/03` с параметрами 4 vCPU / 8 GB RAM / 50 GB disk.
+- Окружения: `dev`, `stage`, `prod`.
+- Базовая модель ОС: full update, NTP `10.277.107.1`, SELinux `disabled`, firewalld управляется Ansible.
+- Сетевая модель: API и SSH из `10.0.0.0/8`, порт `8201` только межузловой, API только через LB.
+- TLS: `internal-ca`, `pem`, ручная доставка сертификатов, ротация 365 дней, mTLS клиентам не требуется.
+- Bootstrap: `shamir_manual`, `key_shares=5`, `key_threshold=3`, audit device day-1 включен.
+- Day-1 функционал: `AppRole` + `KV v2`, OSS-режим.
+- Логирование: `syslog`.
+- DevOps-практики: `ansible-vault`, pre-commit, CI checks, check mode, rolling update.
+- Версия Ansible: `2.12+`.
+- Monitoring: `prometheus`.
+- Целевые значения: `RPO=1 hour`, `RTO=24 hours`.
+- Snapshot: `daily 03:00`, storage: `nfs`.
+- Maintenance window: `Sun 03:00-06:00 MSK`.
+- Модель `key_custodians`: `Option C` (5 доверенных лиц + офлайн escrow у ИБ).
+- `unseal_key_storage`: `trusted persons`.
+- Роли `key_custodians`: `IT Director`, `Dev Lead`, `Net Admin`, `Win Admin`, `Lin Admin`.
+- `root_token_policy`: `Option A` (bootstrap-only и немедленный revoke).
+- `mandatory_tests`: `базовый` (`functional`, `failover`).
+- `owner_team`: `IT-Team`.
+
+### Остались блокеры
+- На текущем этапе блокеры отсутствуют.
+
 ## 1. Топология и инфраструктура VMware
 1. Сколько узлов Vault планируется: 3 или 5?
 2. Какие ресурсы у каждой ВМ (vCPU, RAM, disk, тип datastore)?
@@ -74,4 +102,3 @@
 - Обновлю `Project.md` с финальными архитектурными решениями.
 - Переведу задачи в `Tasktracker.md` в статус исполнения.
 - Сформирую структуру Ansible-репозитория и начну реализацию ролей.
-

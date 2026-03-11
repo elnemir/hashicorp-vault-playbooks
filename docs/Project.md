@@ -150,3 +150,70 @@ flowchart LR
   - процесса bootstrap/операционной модели.
 - Каждое изменение фиксировать в `docs/changelog.md`.
 
+## 13. Уточненные параметры проекта (получено 2026-03-11)
+
+### 13.1 Окружения
+- Целевые среды: `dev`, `stage`, `prod`.
+- Единый плейбук должен поддерживать все среды через inventory/group_vars.
+
+### 13.2 Топология кластера (текущий набор узлов)
+- Количество узлов Vault: `3` (RAFT quorum).
+- Anti-affinity для узлов Vault: `required`.
+- Балансировка/точка входа API: `HAProxy`, VIP `10.255.107.49`.
+- Доступ к Vault API должен идти только через LB/VIP.
+
+| Node | FQDN | IP | vCPU | RAM (GB) | Disk (GB) |
+|---|---|---|---:|---:|---:|
+| vault-test-01 | vault-test-01 | 10.255.107.46 | 4 | 8 | 50 |
+| vault-test-02 | vault-test-02 | 10.255.107.47 | 4 | 8 | 50 |
+| vault-test-03 | vault-test-03 | 10.255.107.48 | 4 | 8 | 50 |
+
+### 13.3 ОС и baseline
+- Full update: `enabled`.
+- NTP сервер: `10.277.107.1`.
+- SELinux: `disabled` (принято как текущий входной параметр; рекомендуется подтвердить допустимость по ИБ-политикам).
+- Firewalld: управляется Ansible.
+- Репозитории, прокси, доп. baseline-пакеты: не заданы (использовать параметры среды).
+
+### 13.4 Сетевая модель доступа
+- Источники к API (`8200/tcp`): `10.0.0.0/8`.
+- Источники SSH (`22/tcp`): `10.0.0.0/8`.
+- Кластерный порт (`8201/tcp`): только межузловой трафик Vault.
+
+### 13.5 TLS/PKI
+- CA: `internal-ca`.
+- Формат: `pem`.
+- Доставка сертификатов: вручную.
+- mTLS для клиентов: `disabled`.
+- Ротация сертификатов: `365 days`.
+- SAN (общий набор): `vault-test-01`, `vault-test-02`, `vault-test-03`, `10.255.107.46`, `10.255.107.47`, `10.255.107.48`, `10.255.107.49`.
+
+### 13.6 Vault bootstrap и day-1 функции
+- Unseal mode: `shamir_manual`.
+- `key_shares=5`, `key_threshold=3`.
+- Key custodians model: `Option C` (5 доверенных лиц + офлайн escrow у ИБ).
+- Unseal key storage: `trusted persons`.
+- Approved key custodians roles: `IT Director`, `Dev Lead`, `Net Admin`, `Win Admin`, `Lin Admin`.
+- Root token policy: `Option A` (используется только для bootstrap и сразу отзывается).
+- Audit device day-1: `enabled`.
+- Day-1 auth: `AppRole`.
+- Day-1 engines: `KV v2`.
+- Enterprise/namespaces: `OSS`, namespaces не требуются.
+
+### 13.7 Эксплуатация
+- Логи: `syslog`.
+- DR на текущем этапе: `not required`.
+- Monitoring stack: `prometheus`.
+- Целевые SLA-параметры: `RPO=1 hour`, `RTO=24 hours`.
+- Snapshot: `daily 03:00`, storage: `nfs`.
+- Owner team: `IT-Team`.
+
+### 13.8 DevOps-процесс
+- Стратегия секретов: `ansible-vault`.
+- Требуется: `pre-commit`, `CI checks`, `check mode`, `rolling update`.
+- Версия Ansible: `2.12+`.
+- Maintenance window: `Sun 03:00-06:00 MSK`.
+- Mandatory tests: `базовый` (`functional`, `failover`).
+
+### 13.9 Открытые блокирующие вопросы
+- На текущем этапе блокеры Discovery закрыты.
