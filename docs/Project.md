@@ -187,6 +187,7 @@ flowchart LR
 - mTLS для клиентов: `disabled`.
 - Ротация сертификатов: `365 days`.
 - SAN (общий набор): `vault-test-01`, `vault-test-02`, `vault-test-03`, `10.255.107.46`, `10.255.107.47`, `10.255.107.48`, `10.255.107.49`.
+- Дополнительное требование: поддержка использования единого TLS-файла из каталога плейбука (controller-side) с доставкой на все ноды.
 
 ### 13.6 Vault bootstrap и day-1 функции
 - Unseal mode: `shamir_manual`.
@@ -207,6 +208,7 @@ flowchart LR
 - Целевые SLA-параметры: `RPO=1 hour`, `RTO=24 hours`.
 - Snapshot: `daily 03:00`, storage: `nfs`.
 - Owner team: `IT-Team`.
+- Требование доступа: единый browser URL через LB/VIP.
 
 ### 13.8 DevOps-процесс
 - Стратегия секретов: `ansible-vault`.

@@ -12,15 +12,25 @@
 - Key custodians: `IT Director`, `Dev Lead`, `Net Admin`, `Win Admin`, `Lin Admin`
 
 ## 3. Предусловия перед деплоем
-1. На узлах доступны сертификаты:
-   - `/etc/vault.d/tls/vault.crt`
-   - `/etc/vault.d/tls/vault.key`
-   - `/etc/vault.d/tls/ca.crt`
+1. TLS-материалы доступны одним из способов:
+   - Ручная доставка на ноды (`/etc/vault.d/tls/vault.crt`, `/etc/vault.d/tls/vault.key`, `/etc/vault.d/tls/ca.crt`)
+   - Controller-side доставка из каталога проекта (`tls/`) через переменные `vault_tls_deploy_from_controller` и `vault_tls_controller_mode`.
 2. Проверена сетевой доступ:
    - `8200/tcp` только от разрешенных API CIDR
    - `8201/tcp` только между нодами кластера
 3. Установлен Ansible `2.12+` на control-host.
 4. Проверены inventory/variables в `inventories/prod/group_vars/`.
+
+## 3.1 Единый URL для браузера
+- Используется переменная `vault_public_url` (например `https://10.255.107.49:8200` или DNS-имя LB).
+- UI и API должны открываться через этот URL.
+
+Проверка:
+
+```bash
+VAULT_PUBLIC_URL="https://10.255.107.49:8200"
+curl -k "${VAULT_PUBLIC_URL}/v1/sys/health"
+```
 
 ## 4. Базовые команды
 Синтаксическая проверка:
@@ -34,6 +44,12 @@ ansible-playbook -i inventories/prod/hosts.yml playbooks/site.yml --syntax-check
 ```bash
 ansible-playbook -i inventories/prod/hosts.yml playbooks/site.yml
 ```
+
+Если используете единый TLS-файл из репозитория:
+1. Положите файл в `tls/vault.pem`.
+2. Убедитесь, что в inventory включено:
+   - `vault_tls_deploy_from_controller: true`
+   - `vault_tls_controller_mode: bundle`
 
 Только baseline ОС:
 

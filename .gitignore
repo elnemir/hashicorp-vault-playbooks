@@ -1,0 +1,6 @@
+tls/*
+!tls/.gitkeep
+!tls/README.md
+
+# Optional local bootstrap artifacts
+vault-init-*.json

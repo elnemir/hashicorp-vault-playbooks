@@ -5,8 +5,9 @@ ntp_servers:
 
 vault_cluster_name: vault-prod
 vault_api_vip: 10.255.107.49
+vault_public_url: "https://10.255.107.49:8200"
 vault_allowed_api_cidrs:
-  - 10.0.0.0/8
+  - 10.255.107.49/32
 vault_allowed_ssh_cidrs:
   - 10.0.0.0/8
 vault_selinux_state: disabled

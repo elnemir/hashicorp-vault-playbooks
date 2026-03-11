@@ -65,3 +65,13 @@
 - Улучшен `roles/vault_install`: добавлен контроль версии установленного бинарника Vault.
 - Улучшен `roles/vault_bootstrap`: реализована логика `effective_root_token` и `token revoke -self` в соответствии с policy `Option A`.
 - Исправлены firewalld rich-rules (`os_baseline`, `vault_config`) на безопасную передачу через `argv`.
+- `docs/Project.md`: зафиксировано требование единого browser URL и controller-side TLS-файла из каталога плейбука.
+- `docs/Tasktracker.md`: добавлена активная задача по единому URL и локальному TLS-файлу.
+- `docs/Diary.md`: добавлена запись о старте доработки единого URL и локального TLS.
+- `docs/Tasktracker.md`: задача по единому URL и локальному TLS переведена в `Завершена`.
+- `docs/Diary.md`: добавлена запись о реализации единого URL и TLS из репозитория.
+- Добавлен `.gitignore` (исключение TLS-секретов из Git).
+- Добавлен `tls/README.md` с инструкциями по режимам TLS `bundle/split`.
+- В `inventories/prod` добавлены `vault_public_url` и LB-only API CIDR для единого browser URL.
+- В `roles/vault_config` добавлена controller-side доставка TLS (bundle/split) с валидацией локальных файлов.
+- Обновлены `README.md` и `docs/runbook.md` инструкциями по единому URL и TLS-файлу `tls/vault.pem`.

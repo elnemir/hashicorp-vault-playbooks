@@ -9,6 +9,101 @@
     - { path: "/etc/vault.d", owner: "vault", group: "vault", mode: "0750" }
     - { path: "/etc/vault.d/tls", owner: "vault", group: "vault", mode: "0750" }
 
+- name: Validate TLS controller mode
+  ansible.builtin.assert:
+    that:
+      - vault_tls_controller_mode in ["split", "bundle"]
+    fail_msg: "vault_tls_controller_mode must be either 'split' or 'bundle'."
+  when: vault_tls_deploy_from_controller | bool
+
+- name: Check local bundle TLS file on controller
+  ansible.builtin.stat:
+    path: "{{ vault_tls_controller_bundle_file }}"
+  delegate_to: localhost
+  become: false
+  register: vault_tls_bundle_local_stat
+  when:
+    - vault_tls_deploy_from_controller | bool
+    - vault_tls_controller_mode == "bundle"
+
+- name: Fail when local bundle TLS file is missing
+  ansible.builtin.assert:
+    that:
+      - vault_tls_bundle_local_stat.stat.exists | bool
+    fail_msg: "TLS bundle file not found on controller: {{ vault_tls_controller_bundle_file }}"
+  when:
+    - vault_tls_deploy_from_controller | bool
+    - vault_tls_controller_mode == "bundle"
+
+- name: Check local split TLS files on controller
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+  loop:
+    - { path: "{{ vault_tls_controller_cert_file }}" }
+    - { path: "{{ vault_tls_controller_key_file }}" }
+    - { path: "{{ vault_tls_controller_ca_file }}" }
+  delegate_to: localhost
+  become: false
+  register: vault_tls_split_local_stats
+  when:
+    - vault_tls_deploy_from_controller | bool
+    - vault_tls_controller_mode == "split"
+
+- name: Fail when one or more local split TLS files are missing
+  ansible.builtin.assert:
+    that:
+      - "(vault_tls_split_local_stats.results | map(attribute='stat.exists') | list | min) | bool"
+    fail_msg: >-
+      Split TLS files are missing on controller. Required:
+      {{ vault_tls_controller_cert_file }}, {{ vault_tls_controller_key_file }}, {{ vault_tls_controller_ca_file }}
+  when:
+    - vault_tls_deploy_from_controller | bool
+    - vault_tls_controller_mode == "split"
+
+- name: Deploy TLS cert/key/ca from bundle file
+  ansible.builtin.copy:
+    src: "{{ vault_tls_controller_bundle_file }}"
+    dest: "{{ item.dest }}"
+    owner: vault
+    group: vault
+    mode: "{{ item.mode }}"
+  loop:
+    - { dest: "{{ vault_tls_cert_file }}", mode: "0640" }
+    - { dest: "{{ vault_tls_key_file }}", mode: "0600" }
+  no_log: true
+  when:
+    - vault_tls_deploy_from_controller | bool
+    - vault_tls_controller_mode == "bundle"
+
+- name: Deploy CA from bundle file when enabled
+  ansible.builtin.copy:
+    src: "{{ vault_tls_controller_bundle_file }}"
+    dest: "{{ vault_tls_ca_file }}"
+    owner: vault
+    group: vault
+    mode: "0640"
+  no_log: true
+  when:
+    - vault_tls_deploy_from_controller | bool
+    - vault_tls_controller_mode == "bundle"
+    - vault_tls_controller_bundle_as_ca | bool
+
+- name: Deploy split TLS files from controller
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: vault
+    group: vault
+    mode: "{{ item.mode }}"
+  loop:
+    - { src: "{{ vault_tls_controller_cert_file }}", dest: "{{ vault_tls_cert_file }}", mode: "0640" }
+    - { src: "{{ vault_tls_controller_key_file }}", dest: "{{ vault_tls_key_file }}", mode: "0600" }
+    - { src: "{{ vault_tls_controller_ca_file }}", dest: "{{ vault_tls_ca_file }}", mode: "0640" }
+  no_log: true
+  when:
+    - vault_tls_deploy_from_controller | bool
+    - vault_tls_controller_mode == "split"
+
 - name: Check required TLS artifacts
   ansible.builtin.stat:
     path: "{{ item.path }}"
