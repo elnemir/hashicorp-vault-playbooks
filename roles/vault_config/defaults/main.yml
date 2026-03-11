@@ -13,7 +13,9 @@ vault_require_tls_files: true
 vault_raft_path: "{{ vault_data_dir | default('/opt/vault') }}/raft"
 vault_raft_retry_join: []
 vault_service_name: vault
+vault_bin_path: /usr/local/bin/vault
 vault_manage_firewalld: "{{ vault_firewalld_managed | default(true) }}"
 vault_config_api_source_cidrs: "{{ vault_allowed_api_cidrs | default([]) }}"
 vault_config_cluster_source_cidrs: []
 vault_config_firewall_strict: true
+vault_config_postcheck_enabled: true

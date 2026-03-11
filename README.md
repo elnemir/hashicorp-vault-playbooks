@@ -37,3 +37,6 @@ ansible-playbook -i inventories/prod/hosts.yml playbooks/site.yml
 - `ansible-lint`
 - `yamllint`
 - `pre-commit`
+
+## Эксплуатация
+- Runbook: [docs/runbook.md](/Users/eln/Documents/hashicorp-vault-playbooks/docs/runbook.md)

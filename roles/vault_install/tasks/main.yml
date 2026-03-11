@@ -71,10 +71,18 @@
   ansible.builtin.file:
     path: "{{ vault_archive_path }}"
     state: absent
+  when: vault_remove_archive_after_install | bool
 
-- name: Ensure Vault service is enabled but not started before configuration
+- name: Ensure Vault service is enabled (configuration/start handled by vault_config role)
   ansible.builtin.systemd:
     name: "{{ vault_service_name }}"
     enabled: true
     daemon_reload: true
-    state: stopped
+
+- name: Validate installed Vault binary
+  ansible.builtin.command: "{{ vault_bin_path }} --version"
+  register: vault_binary_version
+  changed_when: false
+  failed_when:
+    - vault_binary_version.rc != 0
+    - "'Vault v' not in vault_binary_version.stdout"

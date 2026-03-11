@@ -3,6 +3,12 @@
     msg: "vault_bootstrap_enabled=false, bootstrap flow skipped."
   when: not vault_bootstrap_enabled | bool
 
+- name: Initialize effective root token from inventory variable
+  ansible.builtin.set_fact:
+    vault_bootstrap_effective_root_token: "{{ vault_bootstrap_root_token }}"
+  no_log: true
+  when: vault_bootstrap_enabled | bool
+
 - name: Collect Vault status
   ansible.builtin.command: "{{ vault_bin_path }} status -format=json"
   environment:
@@ -59,6 +65,16 @@
     - not vault_initialized | bool
     - vault_bootstrap_auto_init | bool
 
+- name: Set effective root token from fresh init payload when token is absent
+  ansible.builtin.set_fact:
+    vault_bootstrap_effective_root_token: "{{ (vault_init_payload.stdout | from_json).root_token }}"
+  no_log: true
+  when:
+    - vault_bootstrap_enabled | bool
+    - not vault_initialized | bool
+    - vault_bootstrap_auto_init | bool
+    - vault_bootstrap_effective_root_token | default('') | length == 0
+
 - name: Collect Vault status after optional initialization
   ansible.builtin.command: "{{ vault_bin_path }} status -format=json"
   environment:
@@ -76,7 +92,18 @@
     vault_sealed: "{{ (vault_status_after_init.stdout | from_json).sealed | default(true) }}"
   when: vault_bootstrap_enabled | bool
 
-- name: Unseal Vault when unseal keys are provided
+- name: Fail on insufficient unseal keys when node is sealed
+  ansible.builtin.fail:
+    msg: >-
+      Vault is sealed and requires at least {{ vault_key_threshold }} unseal keys,
+      but only {{ vault_bootstrap_unseal_keys | length }} were provided.
+  when:
+    - vault_bootstrap_enabled | bool
+    - vault_sealed | bool
+    - vault_bootstrap_unseal_keys | length > 0
+    - vault_bootstrap_unseal_keys | length < vault_key_threshold
+
+- name: Unseal Vault when enough unseal keys are provided
   ansible.builtin.command: "{{ vault_bin_path }} operator unseal {{ item }}"
   environment:
     VAULT_ADDR: "{{ vault_addr }}"
@@ -133,19 +160,19 @@
 
 - name: Fail when audit enable is requested but root token is absent
   ansible.builtin.fail:
-    msg: "vault_bootstrap_root_token must be provided to enable audit device."
+    msg: "A valid root token is required to manage audit devices."
   when:
     - vault_bootstrap_enabled | bool
     - vault_bootstrap_enable_audit_device | bool
     - not vault_sealed | bool
-    - vault_bootstrap_root_token | length == 0
+    - vault_bootstrap_effective_root_token | default('') | length == 0
 
 - name: Collect Vault audit devices
   ansible.builtin.command: "{{ vault_bin_path }} audit list -format=json"
   environment:
     VAULT_ADDR: "{{ vault_addr }}"
     VAULT_CACERT: "{{ vault_cacert }}"
-    VAULT_TOKEN: "{{ vault_bootstrap_root_token }}"
+    VAULT_TOKEN: "{{ vault_bootstrap_effective_root_token }}"
   register: vault_audit_list_raw
   changed_when: false
   no_log: true
@@ -153,11 +180,10 @@
     - vault_bootstrap_enabled | bool
     - vault_bootstrap_enable_audit_device | bool
     - not vault_sealed | bool
-    - vault_bootstrap_root_token | length > 0
+    - vault_bootstrap_effective_root_token | default('') | length > 0
 
 - name: Parse Vault audit devices
   ansible.builtin.set_fact:
-    vault_audit_devices: "{{ vault_audit_list_raw.stdout | from_json }}"
     vault_file_audit_already_enabled: >-
       {{
         (
@@ -172,7 +198,7 @@
     - vault_bootstrap_enabled | bool
     - vault_bootstrap_enable_audit_device | bool
     - not vault_sealed | bool
-    - vault_bootstrap_root_token | length > 0
+    - vault_bootstrap_effective_root_token | default('') | length > 0
 
 - name: Enable file audit device when not present
   ansible.builtin.command: >-
@@ -183,12 +209,27 @@
   environment:
     VAULT_ADDR: "{{ vault_addr }}"
     VAULT_CACERT: "{{ vault_cacert }}"
-    VAULT_TOKEN: "{{ vault_bootstrap_root_token }}"
+    VAULT_TOKEN: "{{ vault_bootstrap_effective_root_token }}"
   changed_when: true
   no_log: true
   when:
     - vault_bootstrap_enabled | bool
     - vault_bootstrap_enable_audit_device | bool
     - not vault_sealed | bool
-    - vault_bootstrap_root_token | length > 0
+    - vault_bootstrap_effective_root_token | default('') | length > 0
     - not vault_file_audit_already_enabled | bool
+
+- name: Revoke root token in line with bootstrap-only policy
+  ansible.builtin.command: "{{ vault_bin_path }} token revoke -self"
+  environment:
+    VAULT_ADDR: "{{ vault_addr }}"
+    VAULT_CACERT: "{{ vault_cacert }}"
+    VAULT_TOKEN: "{{ vault_bootstrap_effective_root_token }}"
+  register: vault_root_token_revoke
+  changed_when: true
+  no_log: true
+  when:
+    - vault_bootstrap_enabled | bool
+    - not vault_sealed | bool
+    - vault_bootstrap_revoke_root_token | bool
+    - vault_bootstrap_effective_root_token | default('') | length > 0

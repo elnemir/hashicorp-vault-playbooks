@@ -50,9 +50,11 @@
   when: os_baseline_manage_firewalld | bool
 
 - name: Allow SSH only from approved CIDRs
-  ansible.builtin.command: >-
-    firewall-cmd --permanent
-    --add-rich-rule=rule family=ipv4 source address={{ item }} service name=ssh accept
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --permanent
+      - "--add-rich-rule=rule family=ipv4 source address={{ item }} service name=ssh accept"
   loop: "{{ os_baseline_allowed_ssh_cidrs }}"
   register: firewalld_add_ssh_rules
   changed_when: "'success' in (firewalld_add_ssh_rules.stdout + firewalld_add_ssh_rules.stderr)"

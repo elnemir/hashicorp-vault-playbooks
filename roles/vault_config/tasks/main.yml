@@ -41,6 +41,11 @@
     - { path: "{{ vault_tls_ca_file }}", mode: "0640" }
   when: vault_require_tls_files | bool
 
+- name: Initialize effective RAFT retry_join list
+  ansible.builtin.set_fact:
+    vault_effective_retry_join: []
+  when: vault_raft_retry_join | length == 0
+
 - name: Build default RAFT retry_join list from inventory
   ansible.builtin.set_fact:
     vault_effective_retry_join: "{{ (vault_effective_retry_join | default([])) + [ {'leader_api_addr': 'https://' ~ (hostvars[item].ansible_host | default(item)) ~ ':8200'} ] }}"
@@ -103,9 +108,11 @@
   notify: Restart vault
 
 - name: Allow Vault API access from approved CIDRs
-  ansible.builtin.command: >-
-    firewall-cmd --permanent
-    --add-rich-rule=rule family=ipv4 source address={{ item }} port protocol=tcp port=8200 accept
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --permanent
+      - "--add-rich-rule=rule family=ipv4 source address={{ item }} port protocol=tcp port=8200 accept"
   loop: "{{ vault_effective_api_source_cidrs }}"
   register: firewalld_add_api_cidr_rules
   changed_when: "'success' in (firewalld_add_api_cidr_rules.stdout + firewalld_add_api_cidr_rules.stderr)"
@@ -118,9 +125,11 @@
   notify: Reload firewalld
 
 - name: Allow Vault cluster traffic only from cluster nodes
-  ansible.builtin.command: >-
-    firewall-cmd --permanent
-    --add-rich-rule=rule family=ipv4 source address={{ item }} port protocol=tcp port=8201 accept
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --permanent
+      - "--add-rich-rule=rule family=ipv4 source address={{ item }} port protocol=tcp port=8201 accept"
   loop: "{{ vault_effective_cluster_source_cidrs }}"
   register: firewalld_add_cluster_cidr_rules
   changed_when: "'success' in (firewalld_add_cluster_cidr_rules.stdout + firewalld_add_cluster_cidr_rules.stderr)"
@@ -187,3 +196,13 @@
     name: "{{ vault_service_name }}"
     enabled: true
     state: started
+
+- name: Validate Vault service status via CLI
+  ansible.builtin.command: "{{ vault_bin_path }} status -format=json"
+  environment:
+    VAULT_ADDR: "{{ vault_api_addr }}"
+    VAULT_CACERT: "{{ vault_tls_ca_file }}"
+  register: vault_postcheck_status
+  changed_when: false
+  failed_when: vault_postcheck_status.rc not in [0, 2]
+  when: vault_config_postcheck_enabled | bool

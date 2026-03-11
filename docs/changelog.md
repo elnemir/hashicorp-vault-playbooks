@@ -44,6 +44,7 @@
   - `roles/vault_bootstrap` (`defaults/tasks`)
 - Обновлен `README.md` с требованиями, структурой и командами запуска.
 - Обновлен `README.md` с ключевыми production-переменными (`checksum`, strict firewall, bootstrap/audit).
+- Добавлен `docs/runbook.md` с эксплуатационными процедурами для IT-Team.
 
 ### Refined
 - В стартовых ролях синхронизированы defaults с inventory-переменными (`NTP`, `SELinux`, `firewalld`, `vault_api_addr`).
@@ -56,3 +57,11 @@
 - Обновлены `inventories/prod/group_vars/*` для strict firewall-политики и bootstrap-параметров audit.
 - `docs/Tasktracker.md`: hardening-итерация 1 переведена в `Завершена`.
 - `docs/Diary.md`: добавлена запись по hardening-итерации 1.
+- `docs/Tasktracker.md`: добавлена задача `Production-ready доработка ролей (итерация 2)` и активирован runbook-трек.
+- `docs/Diary.md`: добавлена запись о старте итерации 2.
+- `docs/Tasktracker.md`: runbook-задача переведена в `Завершена`, обновлен прогресс итерации 2.
+- `docs/Diary.md`: добавлена запись с результатами итерации 2.
+- Улучшен `roles/vault_config`: добавлен post-check `vault status -format=json` после запуска сервиса.
+- Улучшен `roles/vault_install`: добавлен контроль версии установленного бинарника Vault.
+- Улучшен `roles/vault_bootstrap`: реализована логика `effective_root_token` и `token revoke -self` в соответствии с policy `Option A`.
+- Исправлены firewalld rich-rules (`os_baseline`, `vault_config`) на безопасную передачу через `argv`.
