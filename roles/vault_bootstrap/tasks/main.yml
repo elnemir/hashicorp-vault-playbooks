@@ -1,0 +1,63 @@
+- name: Skip bootstrap when disabled
+  ansible.builtin.debug:
+    msg: "vault_bootstrap_enabled=false, bootstrap flow skipped."
+  when: not vault_bootstrap_enabled | bool
+
+- name: Collect Vault status
+  ansible.builtin.command: "{{ vault_bin_path }} status -format=json"
+  environment:
+    VAULT_ADDR: "{{ vault_addr }}"
+    VAULT_CACERT: "{{ vault_cacert }}"
+  register: vault_status
+  changed_when: false
+  failed_when: vault_status.rc not in [0, 2]
+  when: vault_bootstrap_enabled | bool
+
+- name: Parse Vault status payload
+  ansible.builtin.set_fact:
+    vault_status_json: "{{ vault_status.stdout | from_json }}"
+  when: vault_bootstrap_enabled | bool
+
+- name: Set initialization flag
+  ansible.builtin.set_fact:
+    vault_initialized: "{{ vault_status_json.initialized | default(false) }}"
+  when: vault_bootstrap_enabled | bool
+
+- name: Stop when manual initialization is required
+  ansible.builtin.fail:
+    msg: >-
+      Vault is not initialized. Set vault_bootstrap_auto_init=true only for controlled one-time bootstrap,
+      or initialize manually with approved security process.
+  when:
+    - vault_bootstrap_enabled | bool
+    - not vault_initialized | bool
+    - not vault_bootstrap_auto_init | bool
+
+- name: Initialize Vault in controlled mode
+  ansible.builtin.command: >-
+    {{ vault_bin_path }} operator init -format=json
+    -key-shares={{ vault_key_shares }}
+    -key-threshold={{ vault_key_threshold }}
+  environment:
+    VAULT_ADDR: "{{ vault_addr }}"
+    VAULT_CACERT: "{{ vault_cacert }}"
+  register: vault_init_payload
+  changed_when: true
+  no_log: true
+  when:
+    - vault_bootstrap_enabled | bool
+    - not vault_initialized | bool
+    - vault_bootstrap_auto_init | bool
+
+- name: Store initialization payload on target node
+  ansible.builtin.copy:
+    content: "{{ vault_init_payload.stdout }}"
+    dest: "{{ vault_init_output_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  when:
+    - vault_bootstrap_enabled | bool
+    - not vault_initialized | bool
+    - vault_bootstrap_auto_init | bool

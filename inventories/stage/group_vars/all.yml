@@ -1,0 +1,3 @@
+env_name: stage
+ansible_user: root
+vault_cluster_name: vault-stage

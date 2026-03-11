@@ -1,0 +1,5 @@
+- name: Apply OS baseline and Vault cluster configuration
+  ansible.builtin.import_playbook: os-baseline.yml
+
+- name: Apply Vault install/config/bootstrap workflow
+  ansible.builtin.import_playbook: vault-cluster.yml

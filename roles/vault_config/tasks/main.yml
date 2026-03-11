@@ -1,0 +1,58 @@
+- name: Ensure Vault config and TLS directories exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "/etc/vault.d", owner: "vault", group: "vault", mode: "0750" }
+    - { path: "/etc/vault.d/tls", owner: "vault", group: "vault", mode: "0750" }
+
+- name: Build default RAFT retry_join list from inventory
+  ansible.builtin.set_fact:
+    vault_effective_retry_join: "{{ (vault_effective_retry_join | default([])) + [ {'leader_api_addr': 'https://' ~ (hostvars[item].ansible_host | default(item)) ~ ':8200'} ] }}"
+  loop: "{{ groups['vault'] | default([]) }}"
+  when:
+    - item != inventory_hostname
+    - vault_raft_retry_join | length == 0
+
+- name: Prefer explicitly provided retry_join list when present
+  ansible.builtin.set_fact:
+    vault_effective_retry_join: "{{ vault_raft_retry_join }}"
+  when: vault_raft_retry_join | length > 0
+
+- name: Deploy Vault configuration
+  ansible.builtin.template:
+    src: vault.hcl.j2
+    dest: "{{ vault_config_file }}"
+    owner: vault
+    group: vault
+    mode: "0640"
+  notify: Restart vault
+
+- name: Ensure Vault API port is allowed in firewalld
+  ansible.builtin.command: firewall-cmd --permanent --add-port=8200/tcp
+  register: firewalld_add_api
+  changed_when: "'success' in (firewalld_add_api.stdout + firewalld_add_api.stderr)"
+  failed_when:
+    - firewalld_add_api.rc != 0
+    - "'ALREADY_ENABLED' not in (firewalld_add_api.stdout + firewalld_add_api.stderr)"
+  when: vault_manage_firewalld | bool
+  notify: Reload firewalld
+
+- name: Ensure Vault cluster port is allowed in firewalld
+  ansible.builtin.command: firewall-cmd --permanent --add-port=8201/tcp
+  register: firewalld_add_cluster
+  changed_when: "'success' in (firewalld_add_cluster.stdout + firewalld_add_cluster.stderr)"
+  failed_when:
+    - firewalld_add_cluster.rc != 0
+    - "'ALREADY_ENABLED' not in (firewalld_add_cluster.stdout + firewalld_add_cluster.stderr)"
+  when: vault_manage_firewalld | bool
+  notify: Reload firewalld
+
+- name: Ensure Vault service is enabled and running
+  ansible.builtin.systemd:
+    name: "{{ vault_service_name }}"
+    enabled: true
+    state: started

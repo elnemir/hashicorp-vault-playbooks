@@ -1,0 +1,23 @@
+env_name: prod
+ansible_user: root
+ntp_servers:
+  - 10.277.107.1
+
+vault_cluster_name: vault-prod
+vault_api_vip: 10.255.107.49
+vault_allowed_api_cidrs:
+  - 10.0.0.0/8
+vault_allowed_ssh_cidrs:
+  - 10.0.0.0/8
+vault_selinux_state: disabled
+vault_firewalld_managed: true
+
+vault_unseal_mode: shamir_manual
+vault_key_shares: 5
+vault_key_threshold: 3
+vault_owner_team: IT-Team
+
+vault_snapshot_schedule: "daily 03:00"
+vault_snapshot_storage: nfs
+vault_rpo_hours: 1
+vault_rto_hours: 24

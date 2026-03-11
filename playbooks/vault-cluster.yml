@@ -1,0 +1,15 @@
+- name: Install and configure Vault on cluster nodes
+  hosts: vault
+  become: true
+  gather_facts: true
+  serial: 1
+  roles:
+    - role: vault_install
+    - role: vault_config
+
+- name: Run optional bootstrap flow on first Vault node
+  hosts: vault[0]
+  become: true
+  gather_facts: false
+  roles:
+    - role: vault_bootstrap

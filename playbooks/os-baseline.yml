@@ -1,0 +1,6 @@
+- name: Apply OS baseline to Vault nodes
+  hosts: vault
+  become: true
+  gather_facts: true
+  roles:
+    - role: os_baseline

@@ -1,0 +1,50 @@
+- name: Validate supported platform family
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == "RedHat"
+    fail_msg: "Role os_baseline supports RedHat-compatible systems only."
+
+- name: Update all system packages
+  ansible.builtin.dnf:
+    name: "*"
+    state: latest
+    update_cache: true
+  when: os_baseline_full_update | bool
+
+- name: Install baseline packages
+  ansible.builtin.dnf:
+    name: "{{ os_baseline_packages }}"
+    state: present
+
+- name: Configure NTP servers in chrony
+  ansible.builtin.blockinfile:
+    path: /etc/chrony.conf
+    marker: "# {mark} MANAGED BY ANSIBLE"
+    block: |
+      {% for ntp_server in os_baseline_ntp_servers %}
+      server {{ ntp_server }} iburst
+      {% endfor %}
+  notify: Restart chronyd
+  when:
+    - os_baseline_manage_ntp | bool
+    - os_baseline_ntp_servers | length > 0
+
+- name: Ensure SELinux target mode in config
+  ansible.builtin.lineinfile:
+    path: /etc/selinux/config
+    regexp: '^SELINUX='
+    line: "SELINUX={{ os_baseline_selinux_state }}"
+  when: os_baseline_selinux_state in ["enforcing", "permissive", "disabled"]
+
+- name: Ensure chronyd is enabled and running
+  ansible.builtin.service:
+    name: chronyd
+    enabled: true
+    state: started
+
+- name: Ensure firewalld is enabled and running
+  ansible.builtin.service:
+    name: firewalld
+    enabled: true
+    state: started
+  when: os_baseline_manage_firewalld | bool

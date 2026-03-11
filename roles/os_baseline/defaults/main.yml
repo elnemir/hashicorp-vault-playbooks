@@ -1,0 +1,13 @@
+os_baseline_full_update: true
+os_baseline_packages:
+  - ca-certificates
+  - curl
+  - tar
+  - unzip
+  - chrony
+  - firewalld
+  - policycoreutils-python-utils
+os_baseline_manage_ntp: true
+os_baseline_ntp_servers: "{{ ntp_servers | default([]) }}"
+os_baseline_selinux_state: "{{ vault_selinux_state | default('disabled') }}"
+os_baseline_manage_firewalld: "{{ vault_firewalld_managed | default(true) }}"

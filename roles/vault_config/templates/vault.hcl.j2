@@ -1,0 +1,27 @@
+ui = {{ vault_ui | lower }}
+disable_mlock = {{ vault_disable_mlock | lower }}
+
+api_addr = "{{ vault_api_addr }}"
+cluster_addr = "{{ vault_cluster_addr }}"
+
+listener "tcp" {
+  address = "{{ vault_listener_tcp_address }}"
+  cluster_address = "{{ vault_listener_cluster_address }}"
+  tls_cert_file = "{{ vault_tls_cert_file }}"
+  tls_key_file = "{{ vault_tls_key_file }}"
+  tls_client_ca_file = "{{ vault_tls_ca_file }}"
+  tls_disable_client_certs = {{ vault_tls_disable_client_certs | lower }}
+}
+
+storage "raft" {
+  path = "{{ vault_raft_path }}"
+  node_id = "{{ inventory_hostname }}"
+{% for peer in vault_effective_retry_join | default([]) %}
+  retry_join {
+    leader_api_addr = "{{ peer.leader_api_addr }}"
+    leader_ca_cert_file = "{{ vault_tls_ca_file }}"
+    leader_client_cert_file = "{{ vault_tls_cert_file }}"
+    leader_client_key_file = "{{ vault_tls_key_file }}"
+  }
+{% endfor %}
+}

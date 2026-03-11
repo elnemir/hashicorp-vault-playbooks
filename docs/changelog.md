@@ -28,3 +28,23 @@
 - `docs/qa.md`: блокеры закрыты.
 - `docs/Tasktracker.md`: задачи Discovery переведены в `Завершена`, этап готов к реализации плейбука.
 - `docs/Diary.md`: добавлена запись о полном закрытии Discovery-блокеров.
+- `docs/Tasktracker.md`: добавлена и завершена задача создания каркаса репозитория; задачи ролей переведены в `В процессе`.
+- `docs/Diary.md`: добавлены записи о старте реализации и создании каркаса Ansible.
+- `docs/Tasktracker.md`: добавлен прогресс по каждой роли на этапе скелета реализации.
+
+### Added
+- Добавлен `ansible.cfg`.
+- Добавлены конфигурации качества: `.ansible-lint`, `.yamllint`, `.pre-commit-config.yaml`.
+- Добавлены inventories: `inventories/dev`, `inventories/stage`, `inventories/prod` с базовыми `hosts.yml` и `group_vars`.
+- Добавлены playbooks: `playbooks/site.yml`, `playbooks/os-baseline.yml`, `playbooks/vault-cluster.yml`.
+- Добавлены роли:
+  - `roles/os_baseline` (`defaults/tasks/handlers`)
+  - `roles/vault_install` (`defaults/tasks/handlers/templates`)
+  - `roles/vault_config` (`defaults/tasks/handlers/templates`)
+  - `roles/vault_bootstrap` (`defaults/tasks`)
+- Обновлен `README.md` с требованиями, структурой и командами запуска.
+
+### Refined
+- В стартовых ролях синхронизированы defaults с inventory-переменными (`NTP`, `SELinux`, `firewalld`, `vault_api_addr`).
+- Улучшена обработка статусов `firewall-cmd` в `roles/vault_config/tasks/main.yml` для более корректной идемпотентности.
+- Исправлен порядок запуска сервиса Vault: старт перенесен на этап `vault_config`, чтобы исключить запуск до генерации `vault.hcl`.
