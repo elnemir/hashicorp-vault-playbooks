@@ -26,8 +26,10 @@
 - name: Download Vault archive
   ansible.builtin.get_url:
     url: "{{ vault_download_url }}"
-    dest: "/tmp/vault_{{ vault_version }}_linux_{{ vault_arch }}.zip"
+    dest: "{{ vault_archive_path }}"
     mode: "0644"
+    force: false
+    checksum: "{{ vault_download_checksum if (vault_download_checksum | length > 0) else omit }}"
 
 - name: Create temporary extraction directory
   ansible.builtin.tempfile:
@@ -37,7 +39,7 @@
 
 - name: Extract Vault archive
   ansible.builtin.unarchive:
-    src: "/tmp/vault_{{ vault_version }}_linux_{{ vault_arch }}.zip"
+    src: "{{ vault_archive_path }}"
     dest: "{{ vault_tmp_extract.path }}"
     remote_src: true
 
@@ -63,6 +65,11 @@
 - name: Remove temporary extraction directory
   ansible.builtin.file:
     path: "{{ vault_tmp_extract.path }}"
+    state: absent
+
+- name: Remove Vault archive from temporary location
+  ansible.builtin.file:
+    path: "{{ vault_archive_path }}"
     state: absent
 
 - name: Ensure Vault service is enabled but not started before configuration

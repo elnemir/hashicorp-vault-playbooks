@@ -9,6 +9,38 @@
     - { path: "/etc/vault.d", owner: "vault", group: "vault", mode: "0750" }
     - { path: "/etc/vault.d/tls", owner: "vault", group: "vault", mode: "0750" }
 
+- name: Check required TLS artifacts
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+  loop:
+    - { path: "{{ vault_tls_cert_file }}" }
+    - { path: "{{ vault_tls_key_file }}" }
+    - { path: "{{ vault_tls_ca_file }}" }
+  register: vault_tls_artifacts
+  when: vault_require_tls_files | bool
+
+- name: Fail when TLS artifacts are missing
+  ansible.builtin.assert:
+    that:
+      - "(vault_tls_artifacts.results | map(attribute='stat.exists') | list | min) | bool"
+    fail_msg: >-
+      Missing TLS artifacts for Vault. Ensure cert/key/CA files are delivered before role execution:
+      {{ vault_tls_cert_file }}, {{ vault_tls_key_file }}, {{ vault_tls_ca_file }}.
+  when: vault_require_tls_files | bool
+
+- name: Enforce TLS artifact permissions
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: vault
+    group: vault
+    mode: "{{ item.mode }}"
+    state: file
+  loop:
+    - { path: "{{ vault_tls_cert_file }}", mode: "0640" }
+    - { path: "{{ vault_tls_key_file }}", mode: "0600" }
+    - { path: "{{ vault_tls_ca_file }}", mode: "0640" }
+  when: vault_require_tls_files | bool
+
 - name: Build default RAFT retry_join list from inventory
   ansible.builtin.set_fact:
     vault_effective_retry_join: "{{ (vault_effective_retry_join | default([])) + [ {'leader_api_addr': 'https://' ~ (hostvars[item].ansible_host | default(item)) ~ ':8200'} ] }}"
@@ -22,6 +54,45 @@
     vault_effective_retry_join: "{{ vault_raft_retry_join }}"
   when: vault_raft_retry_join | length > 0
 
+- name: Initialize cluster firewall source list from inventory
+  ansible.builtin.set_fact:
+    vault_effective_cluster_source_cidrs: []
+  when: vault_config_cluster_source_cidrs | length == 0
+
+- name: Build cluster firewall source list from vault nodes
+  ansible.builtin.set_fact:
+    vault_effective_cluster_source_cidrs: "{{ (vault_effective_cluster_source_cidrs | default([])) + [ (hostvars[item].ansible_host | default(item)) ~ '/32' ] }}"
+  loop: "{{ groups['vault'] | default([]) }}"
+  when:
+    - vault_config_cluster_source_cidrs | length == 0
+
+- name: Prefer explicitly provided cluster firewall source list
+  ansible.builtin.set_fact:
+    vault_effective_cluster_source_cidrs: "{{ vault_config_cluster_source_cidrs }}"
+  when: vault_config_cluster_source_cidrs | length > 0
+
+- name: Set effective API firewall source list
+  ansible.builtin.set_fact:
+    vault_effective_api_source_cidrs: "{{ vault_config_api_source_cidrs }}"
+
+- name: Validate strict firewall requirements for API sources
+  ansible.builtin.assert:
+    that:
+      - vault_effective_api_source_cidrs | length > 0
+    fail_msg: "vault_config_firewall_strict=true requires non-empty vault_config_api_source_cidrs."
+  when:
+    - vault_manage_firewalld | bool
+    - vault_config_firewall_strict | bool
+
+- name: Validate strict firewall requirements for cluster sources
+  ansible.builtin.assert:
+    that:
+      - vault_effective_cluster_source_cidrs | length > 0
+    fail_msg: "vault_config_firewall_strict=true requires non-empty vault_effective_cluster_source_cidrs."
+  when:
+    - vault_manage_firewalld | bool
+    - vault_config_firewall_strict | bool
+
 - name: Deploy Vault configuration
   ansible.builtin.template:
     src: vault.hcl.j2
@@ -31,24 +102,84 @@
     mode: "0640"
   notify: Restart vault
 
-- name: Ensure Vault API port is allowed in firewalld
-  ansible.builtin.command: firewall-cmd --permanent --add-port=8200/tcp
-  register: firewalld_add_api
-  changed_when: "'success' in (firewalld_add_api.stdout + firewalld_add_api.stderr)"
+- name: Allow Vault API access from approved CIDRs
+  ansible.builtin.command: >-
+    firewall-cmd --permanent
+    --add-rich-rule=rule family=ipv4 source address={{ item }} port protocol=tcp port=8200 accept
+  loop: "{{ vault_effective_api_source_cidrs }}"
+  register: firewalld_add_api_cidr_rules
+  changed_when: "'success' in (firewalld_add_api_cidr_rules.stdout + firewalld_add_api_cidr_rules.stderr)"
   failed_when:
-    - firewalld_add_api.rc != 0
-    - "'ALREADY_ENABLED' not in (firewalld_add_api.stdout + firewalld_add_api.stderr)"
-  when: vault_manage_firewalld | bool
+    - firewalld_add_api_cidr_rules.rc != 0
+    - "'ALREADY_ENABLED' not in (firewalld_add_api_cidr_rules.stdout + firewalld_add_api_cidr_rules.stderr)"
+  when:
+    - vault_manage_firewalld | bool
+    - vault_effective_api_source_cidrs | length > 0
   notify: Reload firewalld
 
-- name: Ensure Vault cluster port is allowed in firewalld
-  ansible.builtin.command: firewall-cmd --permanent --add-port=8201/tcp
-  register: firewalld_add_cluster
-  changed_when: "'success' in (firewalld_add_cluster.stdout + firewalld_add_cluster.stderr)"
+- name: Allow Vault cluster traffic only from cluster nodes
+  ansible.builtin.command: >-
+    firewall-cmd --permanent
+    --add-rich-rule=rule family=ipv4 source address={{ item }} port protocol=tcp port=8201 accept
+  loop: "{{ vault_effective_cluster_source_cidrs }}"
+  register: firewalld_add_cluster_cidr_rules
+  changed_when: "'success' in (firewalld_add_cluster_cidr_rules.stdout + firewalld_add_cluster_cidr_rules.stderr)"
   failed_when:
-    - firewalld_add_cluster.rc != 0
-    - "'ALREADY_ENABLED' not in (firewalld_add_cluster.stdout + firewalld_add_cluster.stderr)"
-  when: vault_manage_firewalld | bool
+    - firewalld_add_cluster_cidr_rules.rc != 0
+    - "'ALREADY_ENABLED' not in (firewalld_add_cluster_cidr_rules.stdout + firewalld_add_cluster_cidr_rules.stderr)"
+  when:
+    - vault_manage_firewalld | bool
+    - vault_effective_cluster_source_cidrs | length > 0
+  notify: Reload firewalld
+
+- name: Fallback - allow Vault API port globally when CIDR restrictions are absent
+  ansible.builtin.command: firewall-cmd --permanent --add-port=8200/tcp
+  register: firewalld_add_api_port
+  changed_when: "'success' in (firewalld_add_api_port.stdout + firewalld_add_api_port.stderr)"
+  failed_when:
+    - firewalld_add_api_port.rc != 0
+    - "'ALREADY_ENABLED' not in (firewalld_add_api_port.stdout + firewalld_add_api_port.stderr)"
+  when:
+    - vault_manage_firewalld | bool
+    - vault_effective_api_source_cidrs | length == 0
+    - not vault_config_firewall_strict | bool
+  notify: Reload firewalld
+
+- name: Fallback - allow Vault cluster port globally when source list is absent
+  ansible.builtin.command: firewall-cmd --permanent --add-port=8201/tcp
+  register: firewalld_add_cluster_port
+  changed_when: "'success' in (firewalld_add_cluster_port.stdout + firewalld_add_cluster_port.stderr)"
+  failed_when:
+    - firewalld_add_cluster_port.rc != 0
+    - "'ALREADY_ENABLED' not in (firewalld_add_cluster_port.stdout + firewalld_add_cluster_port.stderr)"
+  when:
+    - vault_manage_firewalld | bool
+    - vault_effective_cluster_source_cidrs | length == 0
+    - not vault_config_firewall_strict | bool
+  notify: Reload firewalld
+
+- name: Remove generic Vault API port rule in strict mode
+  ansible.builtin.command: firewall-cmd --permanent --remove-port=8200/tcp
+  register: firewalld_remove_api_port
+  changed_when: "'success' in (firewalld_remove_api_port.stdout + firewalld_remove_api_port.stderr)"
+  failed_when:
+    - firewalld_remove_api_port.rc != 0
+    - "'NOT_ENABLED' not in (firewalld_remove_api_port.stdout + firewalld_remove_api_port.stderr)"
+  when:
+    - vault_manage_firewalld | bool
+    - vault_config_firewall_strict | bool
+  notify: Reload firewalld
+
+- name: Remove generic Vault cluster port rule in strict mode
+  ansible.builtin.command: firewall-cmd --permanent --remove-port=8201/tcp
+  register: firewalld_remove_cluster_port
+  changed_when: "'success' in (firewalld_remove_cluster_port.stdout + firewalld_remove_cluster_port.stderr)"
+  failed_when:
+    - firewalld_remove_cluster_port.rc != 0
+    - "'NOT_ENABLED' not in (firewalld_remove_cluster_port.stdout + firewalld_remove_cluster_port.stderr)"
+  when:
+    - vault_manage_firewalld | bool
+    - vault_config_firewall_strict | bool
   notify: Reload firewalld
 
 - name: Ensure Vault service is enabled and running

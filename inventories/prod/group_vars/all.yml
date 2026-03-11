@@ -11,6 +11,8 @@ vault_allowed_ssh_cidrs:
   - 10.0.0.0/8
 vault_selinux_state: disabled
 vault_firewalld_managed: true
+os_baseline_strict_ssh_firewall: true
+vault_config_firewall_strict: true
 
 vault_unseal_mode: shamir_manual
 vault_key_shares: 5

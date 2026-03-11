@@ -48,3 +48,31 @@
     enabled: true
     state: started
   when: os_baseline_manage_firewalld | bool
+
+- name: Allow SSH only from approved CIDRs
+  ansible.builtin.command: >-
+    firewall-cmd --permanent
+    --add-rich-rule=rule family=ipv4 source address={{ item }} service name=ssh accept
+  loop: "{{ os_baseline_allowed_ssh_cidrs }}"
+  register: firewalld_add_ssh_rules
+  changed_when: "'success' in (firewalld_add_ssh_rules.stdout + firewalld_add_ssh_rules.stderr)"
+  failed_when:
+    - firewalld_add_ssh_rules.rc != 0
+    - "'ALREADY_ENABLED' not in (firewalld_add_ssh_rules.stdout + firewalld_add_ssh_rules.stderr)"
+  when:
+    - os_baseline_manage_firewalld | bool
+    - os_baseline_allowed_ssh_cidrs | length > 0
+  notify: Reload firewalld
+
+- name: Remove generic SSH service rule when strict SSH firewall is enabled
+  ansible.builtin.command: firewall-cmd --permanent --remove-service=ssh
+  register: firewalld_remove_ssh_service
+  changed_when: "'success' in (firewalld_remove_ssh_service.stdout + firewalld_remove_ssh_service.stderr)"
+  failed_when:
+    - firewalld_remove_ssh_service.rc != 0
+    - "'NOT_ENABLED' not in (firewalld_remove_ssh_service.stdout + firewalld_remove_ssh_service.stderr)"
+  when:
+    - os_baseline_manage_firewalld | bool
+    - os_baseline_strict_ssh_firewall | bool
+    - os_baseline_allowed_ssh_cidrs | length > 0
+  notify: Reload firewalld

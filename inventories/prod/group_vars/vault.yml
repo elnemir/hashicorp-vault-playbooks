@@ -1,4 +1,5 @@
 vault_version: "1.16.2"
+vault_download_checksum: ""
 vault_api_addr: "https://10.255.107.49:8200"
 vault_listener_tcp_address: "0.0.0.0:8200"
 vault_listener_cluster_address: "0.0.0.0:8201"
@@ -6,3 +7,4 @@ vault_tls_cert_file: /etc/vault.d/tls/vault.crt
 vault_tls_key_file: /etc/vault.d/tls/vault.key
 vault_tls_ca_file: /etc/vault.d/tls/ca.crt
 vault_bootstrap_enabled: false
+vault_bootstrap_enable_audit_device: true

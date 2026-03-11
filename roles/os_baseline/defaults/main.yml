@@ -11,3 +11,5 @@ os_baseline_manage_ntp: true
 os_baseline_ntp_servers: "{{ ntp_servers | default([]) }}"
 os_baseline_selinux_state: "{{ vault_selinux_state | default('disabled') }}"
 os_baseline_manage_firewalld: "{{ vault_firewalld_managed | default(true) }}"
+os_baseline_allowed_ssh_cidrs: "{{ vault_allowed_ssh_cidrs | default([]) }}"
+os_baseline_strict_ssh_firewall: false

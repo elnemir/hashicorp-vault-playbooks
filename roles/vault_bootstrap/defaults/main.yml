@@ -1,5 +1,12 @@
 vault_bootstrap_enabled: false
 vault_bootstrap_auto_init: false
+vault_bootstrap_unseal_keys: []
+vault_bootstrap_enable_audit_device: true
+vault_bootstrap_audit_mount_path: file
+vault_bootstrap_audit_type: file
+vault_bootstrap_audit_file_path: /var/log/vault/audit.log
+vault_bootstrap_manage_audit_file: true
+vault_bootstrap_root_token: ""
 vault_bin_path: /usr/local/bin/vault
 vault_addr: "https://{{ hostvars[inventory_hostname].ansible_host | default(inventory_hostname) }}:8200"
 vault_cacert: /etc/vault.d/tls/ca.crt

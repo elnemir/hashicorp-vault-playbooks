@@ -26,6 +26,13 @@ ansible-playbook -i inventories/prod/hosts.yml playbooks/site.yml --syntax-check
 ansible-playbook -i inventories/prod/hosts.yml playbooks/site.yml
 ```
 
+## Важные переменные
+- `vault_download_checksum` - SHA256 checksum архива Vault (рекомендуется заполнить для production).
+- `vault_config_firewall_strict` - строгие firewall-правила для Vault портов (CIDR-based).
+- `os_baseline_strict_ssh_firewall` - удаляет общее правило `ssh` и оставляет только разрешенные CIDR.
+- `vault_bootstrap_enabled` и `vault_bootstrap_auto_init` - управление bootstrap-флоу.
+- `vault_bootstrap_root_token` - требуется для автоматического включения audit-device.
+
 ## Качество
 - `ansible-lint`
 - `yamllint`
